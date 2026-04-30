@@ -6,6 +6,7 @@
 
 <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
 <style>
 body { font-family: Arial; margin:20px; background:#f4f6f9; }
@@ -34,9 +35,7 @@ button {
 
 button:hover { background:#2563eb; }
 
-#areaRelatorio {
-  margin:15px 0;
-}
+#areaRelatorio { margin:15px 0; }
 </style>
 </head>
 
@@ -69,15 +68,21 @@ Status:
 
 <br>
 
-<button onclick="exportarCSV()">Baixar Excel</button>
+<button onclick="exportarCSV()">📥 Baixar Excel</button>
+<button onclick="exportarPDF()">📊 Exportar PDF (visual atual)</button>
 
 <h3>Dados detalhados</h3>
 
 <table id="tabela" class="display">
 <thead>
 <tr>
-<th>Ano</th><th>Data Solicitação</th><th>Data Resposta</th>
-<th>Status</th><th>Área</th><th>Tipo</th><th>Cidade</th>
+<th>Ano</th>
+<th>Data Solicitação</th>
+<th>Data Resposta</th>
+<th>Status</th>
+<th>Área</th>
+<th>Tipo</th>
+<th>Cidade</th>
 </tr>
 </thead>
 </table>
@@ -89,9 +94,10 @@ Status:
 
 let dadosGlobais = [];
 let dadosFiltrados = [];
+
 let graficoStatus, graficoAno, graficoTipo;
 
-// 👉 ANOS QUE POSSUEM RELATÓRIO
+// ANOS COM RELATÓRIO
 const anosComRelatorio = [2020, 2021, 2023, 2024, 2025];
 
 function parseDate(d){
@@ -266,6 +272,53 @@ function exportarCSV(){
   a.href=URL.createObjectURL(blob);
   a.download="relatorio_esic.csv";
   a.click();
+}
+
+function exportarPDF(){
+
+  let ano = document.getElementById('filtroAno').value || "Todos os anos";
+
+  let html = `
+    <div style="font-family:Arial; padding:20px;">
+      <h2>Relatório Estatístico e-SIC</h2>
+      <h3>Câmara Municipal de Nova Andradina/MS</h3>
+
+      <p><b>Período:</b> ${ano}</p>
+      <p><b>Total:</b> ${dadosFiltrados.length}</p>
+      <p><b>Atendidas:</b> ${dadosFiltrados.filter(d=>d.Status==="ATENDIDA").length}</p>
+      <p><b>Indeferidas:</b> ${dadosFiltrados.filter(d=>d.Status==="INDEFERIDA").length}</p>
+      <p><b>Em andamento:</b> ${dadosFiltrados.filter(d=>d.Status==="EM ANDAMENTO").length}</p>
+      <p><b>Data de emissão:</b> ${new Date().toLocaleDateString()}</p>
+
+      <h3>Gráfico por Status</h3>
+      <img src="${graficoStatus.toBase64Image()}" style="width:100%;">
+
+      <h3>Tipo de Solicitante</h3>
+      <img src="${graficoTipo.toBase64Image()}" style="width:100%;">
+
+      <h3>Dados</h3>
+      <table border="1" cellspacing="0" cellpadding="5" width="100%">
+        <tr>
+          <th>Ano</th>
+          <th>Data Solicitação</th>
+          <th>Status</th>
+          <th>Tipo</th>
+        </tr>
+
+        ${dadosFiltrados.map(d=>`
+          <tr>
+            <td>${d.Ano}</td>
+            <td>${d["Data Solicitação"]}</td>
+            <td>${d.Status}</td>
+            <td>${d["Tipo de Solicitante"]}</td>
+          </tr>
+        `).join("")}
+
+      </table>
+    </div>
+  `;
+
+  html2pdf().from(html).save(`relatorio_esic_${ano}.pdf`);
 }
 
 </script>
