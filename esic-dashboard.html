@@ -1,54 +1,32 @@
 <script>
-try {
-
-function getCampo(obj, nome){
-  const chave = Object.keys(obj).find(k => k.trim().toLowerCase() === nome.toLowerCase());
-  return chave ? obj[chave] : "";
-}
-
-function parseDateBR(dateStr){
-  if(!dateStr || typeof dateStr !== "string" || !dateStr.includes('/')) return null;
-  const parts = dateStr.split('/');
-  if(parts.length !== 3) return null;
-  return new Date(parts[2], parts[1]-1, parts[0]);
-}
-
-function normalizarStatus(status){
-  if(!status) return "NÃO INFORMADO";
-
-  status = status.toString().trim().toUpperCase();
-
-  if(status.includes("RESOLVIDA") || status.includes("ATEND")) return "ATENDIDA";
-  if(status.includes("INDEFER")) return "INDEFERIDA";
-  if(status.includes("ANDAMENTO")) return "EM ANDAMENTO";
-
-  return "NÃO INFORMADO";
-}
-
 fetch('dados-esic.json')
 .then(r=>r.json())
 .then(data=>{
 
-  if(!data || data.length === 0){
-    document.body.innerHTML += "<p>Erro: JSON vazio</p>";
-    return;
-  }
+  // NORMALIZA STATUS
+  data.forEach(d=>{
+    let status = (d.Status || "").toString().trim().toUpperCase();
 
-  const dados = data.map(d => ({
-    Ano: getCampo(d,"Ano") || "Não informado",
-    "Data Solicitação": getCampo(d,"Data Solicitação"),
-    "Data Resposta": getCampo(d,"Data Resposta"),
-    Status: normalizarStatus(getCampo(d,"Status")),
-    Área: getCampo(d,"Área"),
-    "Tipo de Solicitante": getCampo(d,"Tipo de Solicitante"),
-    Cidade: getCampo(d,"Cidade")
-  }));
+    if(status.includes("RESOLVIDA") || status.includes("ATEND")) d.Status = "ATENDIDA";
+    else if(status.includes("INDEFER")) d.Status = "INDEFERIDA";
+    else if(status.includes("ANDAMENTO")) d.Status = "EM ANDAMENTO";
+    else d.Status = "NÃO INFORMADO";
+
+    if(!d.Ano) d.Ano = "Não informado";
+    if(!d["Tipo de Solicitante"]) d["Tipo de Solicitante"] = "Não informado";
+  });
 
   // PRAZO MÉDIO
+  function parseDateBR(dateStr){
+    if(!dateStr || !dateStr.includes('/')) return null;
+    const p = dateStr.split('/');
+    return new Date(p[2], p[1]-1, p[0]);
+  }
+
   let totalDias = 0;
   let count = 0;
 
-  dados.forEach(d=>{
+  data.forEach(d=>{
     const i = parseDateBR(d["Data Solicitação"]);
     const f = parseDateBR(d["Data Resposta"]);
     if(i && f){
@@ -57,27 +35,35 @@ fetch('dados-esic.json')
     }
   });
 
-  const prazo = count ? (totalDias/count).toFixed(1) : "0";
+  const prazo = count ? (totalDias/count).toFixed(1) : 0;
 
-  // CONTAGEM
-  const total = dados.length;
-  const atendidas = dados.filter(d=>d.Status==="ATENDIDA").length;
-  const indeferidas = dados.filter(d=>d.Status==="INDEFERIDA").length;
-  const andamento = dados.filter(d=>d.Status==="EM ANDAMENTO").length;
+  // INDICADORES
+  const total = data.length;
+  const atendidas = data.filter(d=>d.Status==="ATENDIDA").length;
+  const indeferidas = data.filter(d=>d.Status==="INDEFERIDA").length;
+  const andamento = data.filter(d=>d.Status==="EM ANDAMENTO").length;
 
   document.getElementById('cards').innerHTML = `
     <div class="card"><h3>Total</h3><p>${total}</p></div>
     <div class="card"><h3>Atendidas</h3><p>${atendidas}</p></div>
     <div class="card"><h3>Indeferidas</h3><p>${indeferidas}</p></div>
     <div class="card"><h3>Em Andamento</h3><p>${andamento}</p></div>
-    <div class="card"><h3>% Atendimento</h3><p>${total ? ((atendidas/total)*100).toFixed(1) : 0}%</p></div>
+    <div class="card"><h3>% Atendimento</h3><p>${((atendidas/total)*100).toFixed(1)}%</p></div>
     <div class="card"><h3>Prazo Médio (dias)</h3><p>${prazo}</p></div>
   `;
 
+  // CORES
+  const cores = {
+    "ATENDIDA":"#16a34a",
+    "INDEFERIDA":"#dc2626",
+    "EM ANDAMENTO":"#f59e0b",
+    "NÃO INFORMADO":"#6b7280"
+  };
+
   // GRÁFICO STATUS
   const statusCount = {};
-  dados.forEach(d=>{
-    statusCount[d.Status] = (statusCount[d.Status]||0)+1;
+  data.forEach(d=>{
+    statusCount[d.Status]=(statusCount[d.Status]||0)+1;
   });
 
   new Chart(document.getElementById('graficoStatus'), {
@@ -85,32 +71,35 @@ fetch('dados-esic.json')
     data:{
       labels:Object.keys(statusCount),
       datasets:[{
-        data:Object.values(statusCount)
+        data:Object.values(statusCount),
+        backgroundColor:Object.keys(statusCount).map(s=>cores[s])
       }]
     }
   });
 
-  // GRÁFICO ANO
+  // GRÁFICO ANO (cores diferentes)
   const anoCount = {};
-  dados.forEach(d=>{
-    anoCount[d.Ano] = (anoCount[d.Ano]||0)+1;
+  data.forEach(d=>{
+    anoCount[d.Ano]=(anoCount[d.Ano]||0)+1;
   });
+
+  const palette = ["#1d4ed8","#2563eb","#3b82f6","#60a5fa","#93c5fd","#bfdbfe"];
 
   new Chart(document.getElementById('graficoAno'), {
     type:'bar',
     data:{
       labels:Object.keys(anoCount),
       datasets:[{
-        data:Object.values(anoCount)
+        data:Object.values(anoCount),
+        backgroundColor:Object.keys(anoCount).map((_,i)=>palette[i%palette.length])
       }]
     }
   });
 
   // GRÁFICO TIPO
   const tipoCount = {};
-  dados.forEach(d=>{
-    const tipo = d["Tipo de Solicitante"] || "Não informado";
-    tipoCount[tipo] = (tipoCount[tipo]||0)+1;
+  data.forEach(d=>{
+    tipoCount[d["Tipo de Solicitante"]] = (tipoCount[d["Tipo de Solicitante"]]||0)+1;
   });
 
   new Chart(document.getElementById('graficoTipo'), {
@@ -123,7 +112,7 @@ fetch('dados-esic.json')
 
   // TABELA
   const tabela = $('#tabela').DataTable({
-    data:dados,
+    data:data,
     columns:[
       {data:'Ano'},
       {data:'Data Solicitação'},
@@ -135,6 +124,7 @@ fetch('dados-esic.json')
     ]
   });
 
+  // FILTROS
   $('#filtroAno').on('change', function(){
     tabela.column(0).search(this.value).draw();
   });
@@ -145,12 +135,7 @@ fetch('dados-esic.json')
 
 })
 .catch(e=>{
-  document.body.innerHTML += "<p>Erro ao carregar dados</p>";
   console.error(e);
+  alert("Erro ao carregar dados");
 });
-
-} catch (erro) {
-  document.body.innerHTML += "<p>Erro no script</p>";
-  console.error(erro);
-}
 </script>
