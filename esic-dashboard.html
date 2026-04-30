@@ -6,7 +6,9 @@
 
 <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+<!-- 🔥 NOVA BIBLIOTECA PDF -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
 <style>
 body { font-family: Arial; margin:20px; background:#f4f6f9; }
@@ -25,25 +27,10 @@ body { font-family: Arial; margin:20px; background:#f4f6f9; }
   gap:20px;
 }
 
-/* 🔥 CONTROLE DE TAMANHO DOS GRÁFICOS */
-#graficoStatus,
-#graficoAno {
-  max-height: 300px;
-}
+#graficoStatus,#graficoAno { max-height:300px; }
+#graficoTipo { max-height:420px; }
 
-#graficoTipo {
-  max-height: 420px; /* pizza maior */
-}
-
-canvas {
-  background:#fff;
-  padding:10px;
-  border-radius:10px;
-}
-
-@media(max-width:900px){
-  .graficos { grid-template-columns:1fr; }
-}
+canvas { background:#fff; padding:10px; border-radius:10px; }
 
 button {
   margin:5px; padding:8px 12px;
@@ -86,21 +73,16 @@ Status:
 
 <br>
 
-<button onclick="exportarCSV()">📥 Baixar Excel</button>
-<button onclick="exportarPDF()">📊 Exportar PDF (visual atual)</button>
+<button onclick="exportarCSV()">📥 Excel</button>
+<button onclick="exportarPDF()">📄 PDF</button>
 
 <h3>Dados detalhados</h3>
 
 <table id="tabela" class="display">
 <thead>
 <tr>
-<th>Ano</th>
-<th>Data Solicitação</th>
-<th>Data Resposta</th>
-<th>Status</th>
-<th>Área</th>
-<th>Tipo</th>
-<th>Cidade</th>
+<th>Ano</th><th>Data Solicitação</th><th>Data Resposta</th>
+<th>Status</th><th>Área</th><th>Tipo</th><th>Cidade</th>
 </tr>
 </thead>
 </table>
@@ -110,12 +92,12 @@ Status:
 
 <script>
 
-let dadosGlobais = [];
-let dadosFiltrados = [];
+const { jsPDF } = window.jspdf;
 
+let dadosGlobais=[], dadosFiltrados=[];
 let graficoStatus, graficoAno, graficoTipo;
 
-const anosComRelatorio = [2020, 2021, 2023, 2024, 2025];
+const anosComRelatorio=[2020,2021,2023,2024,2025];
 
 function parseDate(d){
   if(!d) return null;
@@ -128,99 +110,47 @@ function parseDate(d){
 
 function atualizarTudo(data){
 
-  dadosFiltrados = data;
+  dadosFiltrados=data;
 
-  let total = data.length;
-  let atendidas = data.filter(d=>d.Status==="ATENDIDA").length;
-  let indeferidas = data.filter(d=>d.Status==="INDEFERIDA").length;
-  let andamento = data.filter(d=>d.Status==="EM ANDAMENTO").length;
+  let total=data.length;
+  let atendidas=data.filter(d=>d.Status==="ATENDIDA").length;
+  let indeferidas=data.filter(d=>d.Status==="INDEFERIDA").length;
+  let andamento=data.filter(d=>d.Status==="EM ANDAMENTO").length;
 
-  let dias=0, c=0;
+  document.getElementById('cards').innerHTML=`
+  <div class="card">Total: ${total}</div>
+  <div class="card">Atendidas: ${atendidas}</div>
+  <div class="card">Indeferidas: ${indeferidas}</div>
+  <div class="card">Em andamento: ${andamento}</div>`;
 
-  data.forEach(d=>{
-    let i=parseDate(d["Data Solicitação"]);
-    let f=parseDate(d["Data Resposta"]);
-    if(i && f){ dias+=(f-i)/(1000*60*60*24); c++; }
-  });
-
-  let prazo = c ? (dias/c).toFixed(1) : 0;
-
-  document.getElementById('cards').innerHTML = `
-    <div class="card"><b>Total:</b> ${total}</div>
-    <div class="card"><b>Atendidas:</b> ${atendidas}</div>
-    <div class="card"><b>Indeferidas:</b> ${indeferidas}</div>
-    <div class="card"><b>Em andamento:</b> ${andamento}</div>
-    <div class="card"><b>% Atendimento:</b> ${total?((atendidas/total)*100).toFixed(1):0}%</div>
-    <div class="card"><b>Prazo médio:</b> ${prazo} dias</div>
-  `;
-
-  let statusCount={}, anoCount={}, tipoCount={};
+  let statusCount={},tipoCount={};
 
   data.forEach(d=>{
     statusCount[d.Status]=(statusCount[d.Status]||0)+1;
-    anoCount[d.Ano]=(anoCount[d.Ano]||0)+1;
-    tipoCount[d["Tipo de Solicitante"]] = (tipoCount[d["Tipo de Solicitante"]]||0)+1;
+    tipoCount[d["Tipo de Solicitante"]]=(tipoCount[d["Tipo de Solicitante"]]||0)+1;
   });
 
   graficoStatus.destroy();
   graficoStatus=new Chart(graficoStatusCtx,{
     type:'bar',
-    data:{
-      labels:Object.keys(statusCount),
-      datasets:[{
-        label:'Quantidade',
-        data:Object.values(statusCount),
-        backgroundColor:Object.keys(statusCount).map(s=>{
-          if(s==="ATENDIDA") return "#16a34a";
-          if(s==="INDEFERIDA") return "#dc2626";
-          if(s==="EM ANDAMENTO") return "#f59e0b";
-          return "#6b7280";
-        })
-      }]
-    }
-  });
-
-  graficoAno.destroy();
-  graficoAno=new Chart(graficoAnoCtx,{
-    type:'bar',
-    data:{
-      labels:Object.keys(anoCount),
-      datasets:[{
-        label:'Quantidade',
-        data:Object.values(anoCount),
-        backgroundColor:"#3b82f6"
-      }]
-    }
+    data:{labels:Object.keys(statusCount),datasets:[{data:Object.values(statusCount)}]}
   });
 
   graficoTipo.destroy();
   graficoTipo=new Chart(graficoTipoCtx,{
     type:'pie',
-    data:{
-      labels:Object.keys(tipoCount),
-      datasets:[{data:Object.values(tipoCount)}]
-    }
+    data:{labels:Object.keys(tipoCount),datasets:[{data:Object.values(tipoCount)}]}
   });
-
 }
 
 function atualizarBotaoRelatorio(ano){
-
-  let area = document.getElementById('areaRelatorio');
-
+  let area=document.getElementById('areaRelatorio');
   if(anosComRelatorio.includes(parseInt(ano))){
-    area.innerHTML = `
-      <button onclick="window.open('relatorios/relatorio_esic_${ano}.pdf')">
-        📄 Baixar Relatório ${ano}
-      </button>
-    `;
-  } else {
-    area.innerHTML = "";
-  }
+    area.innerHTML=`<button onclick="window.open('relatorios/relatorio_esic_${ano}.pdf')">📄 Relatório ${ano}</button>`;
+  } else area.innerHTML="";
 }
 
 let graficoStatusCtx=document.getElementById('graficoStatus').getContext('2d');
-let graficoAnoCtx=document.getElementById('graficoAno').getContext('2d');
 let graficoTipoCtx=document.getElementById('graficoTipo').getContext('2d');
 
 fetch('dados-esic.json')
@@ -231,8 +161,7 @@ fetch('dados-esic.json')
     let s=(d.Status||"").toUpperCase();
     if(s.includes("RESOLVIDA")||s.includes("ATEND")) d.Status="ATENDIDA";
     else if(s.includes("INDEFER")) d.Status="INDEFERIDA";
-    else if(s.includes("ANDAMENTO")) d.Status="EM ANDAMENTO";
-    else d.Status="NÃO INFORMADO";
+    else d.Status="EM ANDAMENTO";
   });
 
   dadosGlobais=data;
@@ -243,8 +172,6 @@ fetch('dados-esic.json')
 
   graficoStatus=new Chart(graficoStatusCtx,{type:'bar',data:{labels:[],datasets:[{data:[]}]}});
 
-  graficoAno=new Chart(graficoAnoCtx,{type:'bar',data:{labels:[],datasets:[{data:[]}]}});
-
   graficoTipo=new Chart(graficoTipoCtx,{type:'pie',data:{labels:[],datasets:[{data:[]}]}});
 
   atualizarTudo(data);
@@ -252,99 +179,56 @@ fetch('dados-esic.json')
   let tabela=$('#tabela').DataTable({
     data:data,
     columns:[
-      {data:'Ano'},
-      {data:'Data Solicitação'},
-      {data:'Data Resposta'},
-      {data:'Status'},
-      {data:'Área'},
-      {data:'Tipo de Solicitante'},
-      {data:'Cidade'}
+      {data:'Ano'},{data:'Data Solicitação'},{data:'Data Resposta'},
+      {data:'Status'},{data:'Área'},{data:'Tipo de Solicitante'},{data:'Cidade'}
     ]
   });
 
   $('#filtroAno,#filtroStatus').on('change',function(){
-
     let f=dadosGlobais;
     let ano=$('#filtroAno').val();
     let status=$('#filtroStatus').val();
-
     if(ano) f=f.filter(d=>d.Ano==ano);
     if(status) f=f.filter(d=>d.Status==status);
-
     tabela.clear().rows.add(f).draw();
     atualizarTudo(f);
     atualizarBotaoRelatorio(ano);
-
   });
 
 });
 
-function exportarCSV(){
-  let csv="Ano,Data Solicitação,Data Resposta,Status,Área,Tipo,Cidade\n";
+function exportarPDF(){
+
+  let doc=new jsPDF();
+
+  doc.setFontSize(14);
+  doc.text("Relatório Estatístico e-SIC",10,10);
+  doc.text("Câmara Municipal de Nova Andradina/MS",10,18);
+
+  doc.setFontSize(10);
+  doc.text("Total: "+dadosFiltrados.length,10,30);
+
+  let y=40;
+
   dadosFiltrados.forEach(d=>{
-    csv+=`${d.Ano},${d["Data Solicitação"]},${d["Data Resposta"]},${d.Status},${d.Área},${d["Tipo de Solicitante"]},${d.Cidade}\n`;
+    doc.text(`${d.Ano} - ${d.Status}`,10,y);
+    y+=6;
+    if(y>280){ doc.addPage(); y=10; }
+  });
+
+  doc.save("relatorio_esic.pdf");
+}
+
+function exportarCSV(){
+  let csv="Ano,Status\n";
+  dadosFiltrados.forEach(d=>{
+    csv+=`${d.Ano},${d.Status}\n`;
   });
   let blob=new Blob([csv]);
   let a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
-  a.download="relatorio_esic.csv";
+  a.download="relatorio.csv";
   a.click();
-}
-
-function exportarPDF(){
-
-  let ano = document.getElementById('filtroAno').value || "Todos os anos";
-
-  let html = `
-<div style="font-family:Arial; padding:20px;">
-
-<h2>Relatório Estatístico e-SIC</h2>
-<h3>Câmara Municipal de Nova Andradina/MS</h3>
-
-<p><b>Período:</b> ${ano}</p>
-<p><b>Total:</b> ${dadosFiltrados.length}</p>
-<p><b>Atendidas:</b> ${dadosFiltrados.filter(d=>d.Status==="ATENDIDA").length}</p>
-<p><b>Indeferidas:</b> ${dadosFiltrados.filter(d=>d.Status==="INDEFERIDA").length}</p>
-<p><b>Em andamento:</b> ${dadosFiltrados.filter(d=>d.Status==="EM ANDAMENTO").length}</p>
-<p><b>Data de emissão:</b> ${new Date().toLocaleDateString()}</p>
-
-<h3>Gráfico por Status</h3>
-<img src="${graficoStatus.toBase64Image()}" style="width:100%; max-height:250px;">
-
-<h3>Tipo de Solicitante</h3>
-<img src="${graficoTipo.toBase64Image()}" style="width:100%; max-height:300px;">
-
-<div style="page-break-before: always;"></div>
-
-<h3>Dados</h3>
-<table border="1" cellspacing="0" cellpadding="5" width="100%">
-<tr>
-<th>Ano</th>
-<th>Data Solicitação</th>
-<th>Status</th>
-<th>Tipo</th>
-</tr>
-
-${dadosFiltrados.map(d=>`
-<tr>
-<td>${d.Ano}</td>
-<td>${d["Data Solicitação"]}</td>
-<td>${d.Status}</td>
-<td>${d["Tipo de Solicitante"]}</td>
-</tr>
-`).join("")}
-
-</table>
-
-</div>
-`;
-
-  html2pdf().set({
-    margin: 10,
-    filename: `relatorio_esic_${ano}.pdf`,
-    html2canvas: { scale: 2 },
-    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-  }).from(html).save();
 }
 
 </script>
