@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<title>Painel e-SIC</title>
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+</head>
+<body>
+
+<h2>Relatório e-SIC</h2>
+
+<label>Filtrar por Ano:</label>
+<select id="filtroAno"><option value="">Todos</option></select>
+
+<table id="tabela" class="display">
+<thead><tr>
+<th>Ano</th><th>Data Solicitação</th><th>Data Resposta</th><th>Status</th><th>Área</th><th>Tipo de Solicitante</th><th>Cidade</th>
+</tr></thead>
+</table>
+
+<script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+
+<script>
+fetch('dados-esic.json')
+.then(r=>r.json())
+.then(data=>{
+  const anos=[...new Set(data.map(d=>d.Ano))];
+  anos.forEach(a=>document.getElementById('filtroAno').innerHTML+=`<option>${a}</option>`);
+
+  const tabela = $('#tabela').DataTable({
+    data:data,
+    columns:[
+      {data:'Ano'},
+      {data:'Data Solicitação'},
+      {data:'Data Resposta'},
+      {data:'Status'},
+      {data:'Área'},
+      {data:'Tipo de Solicitante'},
+      {data:'Cidade'}
+    ]
+  });
+
+  document.getElementById('filtroAno').addEventListener('change', function(){
+    tabela.column(0).search(this.value).draw();
+  });
+});
+</script>
+
+</body>
+</html>
