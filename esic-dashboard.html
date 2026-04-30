@@ -1,41 +1,167 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<title>Painel e-SIC</title>
+
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+body {
+  font-family: Arial, sans-serif;
+  margin: 20px;
+  background: #f4f6f9;
+}
+
+h2 {
+  margin-bottom: 15px;
+}
+
+.cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+  margin-bottom: 25px;
+}
+
+.card {
+  flex: 1;
+  min-width: 180px;
+  background: #fff;
+  padding: 15px;
+  border-left: 5px solid #1d4ed8;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.card h3 {
+  font-size: 13px;
+  color: #555;
+  margin: 0;
+}
+
+.card p {
+  font-size: 22px;
+  margin: 5px 0 0;
+  font-weight: bold;
+}
+
+.graficos {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 25px;
+}
+
+@media(max-width: 900px){
+  .graficos {
+    grid-template-columns: 1fr;
+  }
+}
+
+canvas {
+  background: white;
+  padding: 10px;
+  border-radius: 10px;
+}
+
+.filtros {
+  margin-bottom: 15px;
+}
+</style>
+
+</head>
+<body>
+
+<h2>Relatório Estatístico e-SIC</h2>
+
+<div class="cards" id="cards"></div>
+
+<div class="graficos">
+  <div>
+    <h3>Solicitações por Status</h3>
+    <canvas id="graficoStatus"></canvas>
+  </div>
+  <div>
+    <h3>Solicitações por Ano</h3>
+    <canvas id="graficoAno"></canvas>
+  </div>
+  <div>
+    <h3>Tipo de Solicitante</h3>
+    <canvas id="graficoTipo"></canvas>
+  </div>
+</div>
+
+<h3>Dados detalhados</h3>
+
+<div class="filtros">
+  <label>Ano:</label>
+  <select id="filtroAno"><option value="">Todos</option></select>
+
+  <label>Status:</label>
+  <select id="filtroStatus">
+    <option value="">Todos</option>
+    <option>ATENDIDA</option>
+    <option>INDEFERIDA</option>
+    <option>EM ANDAMENTO</option>
+  </select>
+</div>
+
+<table id="tabela" class="display">
+<thead>
+<tr>
+<th>Ano</th>
+<th>Data Solicitação</th>
+<th>Data Resposta</th>
+<th>Status</th>
+<th>Área</th>
+<th>Tipo</th>
+<th>Cidade</th>
+</tr>
+</thead>
+</table>
+
+<script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+
 <script>
+function parseDateBR(dateStr){
+  if(!dateStr) return null;
+  const parts = dateStr.split('/');
+  return new Date(parts[2], parts[1]-1, parts[0]);
+}
+
 fetch('dados-esic.json')
 .then(r=>r.json())
 .then(data=>{
 
   // NORMALIZA STATUS
   data.forEach(d=>{
-    let status = (d.Status || "").toString().trim().toUpperCase();
+    if(d.Status === "RESOLVIDA") d.Status = "ATENDIDA";
+  });
 
-    if(status.includes("RESOLVIDA") || status.includes("ATEND")) d.Status = "ATENDIDA";
-    else if(status.includes("INDEFER")) d.Status = "INDEFERIDA";
-    else if(status.includes("ANDAMENTO")) d.Status = "EM ANDAMENTO";
-    else d.Status = "NÃO INFORMADO";
-
-    if(!d.Ano) d.Ano = "Não informado";
-    if(!d["Tipo de Solicitante"]) d["Tipo de Solicitante"] = "Não informado";
+  // FILTRO ANO
+  const anos=[...new Set(data.map(d=>d.Ano))];
+  anos.forEach(a=>{
+    document.getElementById('filtroAno').innerHTML+=`<option>${a}</option>`;
   });
 
   // PRAZO MÉDIO
-  function parseDateBR(dateStr){
-    if(!dateStr || !dateStr.includes('/')) return null;
-    const p = dateStr.split('/');
-    return new Date(p[2], p[1]-1, p[0]);
-  }
-
   let totalDias = 0;
-  let count = 0;
+  let countPrazo = 0;
 
   data.forEach(d=>{
-    const i = parseDateBR(d["Data Solicitação"]);
-    const f = parseDateBR(d["Data Resposta"]);
-    if(i && f){
-      totalDias += (f-i)/(1000*60*60*24);
-      count++;
+    const inicio = parseDateBR(d["Data Solicitação"]);
+    const fim = parseDateBR(d["Data Resposta"]);
+    if(inicio && fim){
+      const diff = (fim - inicio) / (1000*60*60*24);
+      totalDias += diff;
+      countPrazo++;
     }
   });
 
-  const prazo = count ? (totalDias/count).toFixed(1) : 0;
+  const prazoMedio = countPrazo ? (totalDias/countPrazo).toFixed(1) : 0;
 
   // INDICADORES
   const total = data.length;
@@ -49,51 +175,29 @@ fetch('dados-esic.json')
     <div class="card"><h3>Indeferidas</h3><p>${indeferidas}</p></div>
     <div class="card"><h3>Em Andamento</h3><p>${andamento}</p></div>
     <div class="card"><h3>% Atendimento</h3><p>${((atendidas/total)*100).toFixed(1)}%</p></div>
-    <div class="card"><h3>Prazo Médio (dias)</h3><p>${prazo}</p></div>
+    <div class="card"><h3>Prazo Médio (dias)</h3><p>${prazoMedio}</p></div>
   `;
-
-  // CORES
-  const cores = {
-    "ATENDIDA":"#16a34a",
-    "INDEFERIDA":"#dc2626",
-    "EM ANDAMENTO":"#f59e0b",
-    "NÃO INFORMADO":"#6b7280"
-  };
 
   // GRÁFICO STATUS
   const statusCount = {};
   data.forEach(d=>{
-    statusCount[d.Status]=(statusCount[d.Status]||0)+1;
+    statusCount[d.Status] = (statusCount[d.Status]||0)+1;
   });
 
   new Chart(document.getElementById('graficoStatus'), {
-    type:'bar',
-    data:{
-      labels:Object.keys(statusCount),
-      datasets:[{
-        data:Object.values(statusCount),
-        backgroundColor:Object.keys(statusCount).map(s=>cores[s])
-      }]
-    }
+    type: 'bar',
+    data: { labels:Object.keys(statusCount), datasets:[{data:Object.values(statusCount)}] }
   });
 
-  // GRÁFICO ANO (cores diferentes)
+  // GRÁFICO ANO
   const anoCount = {};
   data.forEach(d=>{
-    anoCount[d.Ano]=(anoCount[d.Ano]||0)+1;
+    anoCount[d.Ano] = (anoCount[d.Ano]||0)+1;
   });
 
-  const palette = ["#1d4ed8","#2563eb","#3b82f6","#60a5fa","#93c5fd","#bfdbfe"];
-
   new Chart(document.getElementById('graficoAno'), {
-    type:'bar',
-    data:{
-      labels:Object.keys(anoCount),
-      datasets:[{
-        data:Object.values(anoCount),
-        backgroundColor:Object.keys(anoCount).map((_,i)=>palette[i%palette.length])
-      }]
-    }
+    type: 'bar',
+    data: { labels:Object.keys(anoCount), datasets:[{data:Object.values(anoCount)}] }
   });
 
   // GRÁFICO TIPO
@@ -103,11 +207,8 @@ fetch('dados-esic.json')
   });
 
   new Chart(document.getElementById('graficoTipo'), {
-    type:'pie',
-    data:{
-      labels:Object.keys(tipoCount),
-      datasets:[{data:Object.values(tipoCount)}]
-    }
+    type: 'pie',
+    data: { labels:Object.keys(tipoCount), datasets:[{data:Object.values(tipoCount)}] }
   });
 
   // TABELA
@@ -133,9 +234,8 @@ fetch('dados-esic.json')
     tabela.column(3).search(this.value).draw();
   });
 
-})
-.catch(e=>{
-  console.error(e);
-  alert("Erro ao carregar dados");
 });
 </script>
+
+</body>
+</html>
