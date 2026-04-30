@@ -1,12 +1,15 @@
 <script>
+try {
+
 function getCampo(obj, nome){
   const chave = Object.keys(obj).find(k => k.trim().toLowerCase() === nome.toLowerCase());
   return chave ? obj[chave] : "";
 }
 
 function parseDateBR(dateStr){
-  if(!dateStr || !dateStr.includes('/')) return null;
+  if(!dateStr || typeof dateStr !== "string" || !dateStr.includes('/')) return null;
   const parts = dateStr.split('/');
+  if(parts.length !== 3) return null;
   return new Date(parts[2], parts[1]-1, parts[0]);
 }
 
@@ -26,23 +29,20 @@ fetch('dados-esic.json')
 .then(r=>r.json())
 .then(data=>{
 
-  const dados = data.map(d => {
+  if(!data || data.length === 0){
+    document.body.innerHTML += "<p>Erro: JSON vazio</p>";
+    return;
+  }
 
-    const status = normalizarStatus(getCampo(d,"Status"));
-    const ano = getCampo(d,"Ano") || "Não informado";
-    const dataSolic = getCampo(d,"Data Solicitação");
-    const dataResp = getCampo(d,"Data Resposta");
-
-    return {
-      Ano: ano,
-      "Data Solicitação": dataSolic,
-      "Data Resposta": dataResp,
-      Status: status,
-      Área: getCampo(d,"Área"),
-      "Tipo de Solicitante": getCampo(d,"Tipo de Solicitante"),
-      Cidade: getCampo(d,"Cidade")
-    };
-  });
+  const dados = data.map(d => ({
+    Ano: getCampo(d,"Ano") || "Não informado",
+    "Data Solicitação": getCampo(d,"Data Solicitação"),
+    "Data Resposta": getCampo(d,"Data Resposta"),
+    Status: normalizarStatus(getCampo(d,"Status")),
+    Área: getCampo(d,"Área"),
+    "Tipo de Solicitante": getCampo(d,"Tipo de Solicitante"),
+    Cidade: getCampo(d,"Cidade")
+  }));
 
   // PRAZO MÉDIO
   let totalDias = 0;
@@ -57,7 +57,7 @@ fetch('dados-esic.json')
     }
   });
 
-  const prazo = count ? (totalDias/count).toFixed(1) : 0;
+  const prazo = count ? (totalDias/count).toFixed(1) : "0";
 
   // CONTAGEM
   const total = dados.length;
@@ -70,21 +70,14 @@ fetch('dados-esic.json')
     <div class="card"><h3>Atendidas</h3><p>${atendidas}</p></div>
     <div class="card"><h3>Indeferidas</h3><p>${indeferidas}</p></div>
     <div class="card"><h3>Em Andamento</h3><p>${andamento}</p></div>
-    <div class="card"><h3>% Atendimento</h3><p>${((atendidas/total)*100).toFixed(1)}%</p></div>
+    <div class="card"><h3>% Atendimento</h3><p>${total ? ((atendidas/total)*100).toFixed(1) : 0}%</p></div>
     <div class="card"><h3>Prazo Médio (dias)</h3><p>${prazo}</p></div>
   `;
 
-  // STATUS
-  const cores = {
-    "ATENDIDA":"#16a34a",
-    "INDEFERIDA":"#dc2626",
-    "EM ANDAMENTO":"#f59e0b",
-    "NÃO INFORMADO":"#6b7280"
-  };
-
+  // GRÁFICO STATUS
   const statusCount = {};
   dados.forEach(d=>{
-    statusCount[d.Status]=(statusCount[d.Status]||0)+1;
+    statusCount[d.Status] = (statusCount[d.Status]||0)+1;
   });
 
   new Chart(document.getElementById('graficoStatus'), {
@@ -92,16 +85,15 @@ fetch('dados-esic.json')
     data:{
       labels:Object.keys(statusCount),
       datasets:[{
-        data:Object.values(statusCount),
-        backgroundColor:Object.keys(statusCount).map(s=>cores[s])
+        data:Object.values(statusCount)
       }]
     }
   });
 
-  // ANO
+  // GRÁFICO ANO
   const anoCount = {};
   dados.forEach(d=>{
-    anoCount[d.Ano]=(anoCount[d.Ano]||0)+1;
+    anoCount[d.Ano] = (anoCount[d.Ano]||0)+1;
   });
 
   new Chart(document.getElementById('graficoAno'), {
@@ -109,16 +101,16 @@ fetch('dados-esic.json')
     data:{
       labels:Object.keys(anoCount),
       datasets:[{
-        data:Object.values(anoCount),
-        backgroundColor:"#3b82f6"
+        data:Object.values(anoCount)
       }]
     }
   });
 
-  // TIPO
+  // GRÁFICO TIPO
   const tipoCount = {};
   dados.forEach(d=>{
-    tipoCount[d["Tipo de Solicitante"]] = (tipoCount[d["Tipo de Solicitante"]]||0)+1;
+    const tipo = d["Tipo de Solicitante"] || "Não informado";
+    tipoCount[tipo] = (tipoCount[tipo]||0)+1;
   });
 
   new Chart(document.getElementById('graficoTipo'), {
@@ -151,5 +143,14 @@ fetch('dados-esic.json')
     tabela.column(3).search(this.value).draw();
   });
 
+})
+.catch(e=>{
+  document.body.innerHTML += "<p>Erro ao carregar dados</p>";
+  console.error(e);
 });
+
+} catch (erro) {
+  document.body.innerHTML += "<p>Erro no script</p>";
+  console.error(erro);
+}
 </script>
