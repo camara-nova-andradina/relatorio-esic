@@ -3,11 +3,24 @@
 <head>
 <meta charset="UTF-8">
 <title>Painel e-SIC</title>
+
 <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
 
-<h2>Relatório e-SIC</h2>
+<h2>Relatório Estatístico e-SIC</h2>
+
+<div id="indicadores"></div>
+
+<h3>Gráfico por Status</h3>
+<canvas id="graficoStatus"></canvas>
+
+<h3>Gráfico por Ano</h3>
+<canvas id="graficoAno"></canvas>
+
+<h3>Dados detalhados</h3>
 
 <label>Filtrar por Ano:</label>
 <select id="filtroAno"><option value="">Todos</option></select>
@@ -25,9 +38,54 @@
 fetch('dados-esic.json')
 .then(r=>r.json())
 .then(data=>{
-  const anos=[...new Set(data.map(d=>d.Ano))];
-  anos.forEach(a=>document.getElementById('filtroAno').innerHTML+=`<option>${a}</option>`);
 
+  // FILTRO ANO
+  const anos=[...new Set(data.map(d=>d.Ano))];
+  anos.forEach(a=>{
+    document.getElementById('filtroAno').innerHTML+=`<option>${a}</option>`;
+  });
+
+  // INDICADORES
+  const total = data.length;
+  const atendidas = data.filter(d=>d.Status=="Atendida").length;
+  const indeferidas = data.filter(d=>d.Status=="Indeferida").length;
+
+  document.getElementById('indicadores').innerHTML = `
+    <p><b>Total:</b> ${total}</p>
+    <p><b>Atendidas:</b> ${atendidas}</p>
+    <p><b>Indeferidas:</b> ${indeferidas}</p>
+    <p><b>% Atendimento:</b> ${((atendidas/total)*100).toFixed(1)}%</p>
+  `;
+
+  // GRÁFICO STATUS
+  const statusCount = {};
+  data.forEach(d=>{
+    statusCount[d.Status] = (statusCount[d.Status]||0)+1;
+  });
+
+  new Chart(document.getElementById('graficoStatus'), {
+    type: 'bar',
+    data: {
+      labels: Object.keys(statusCount),
+      datasets: [{ data: Object.values(statusCount) }]
+    }
+  });
+
+  // GRÁFICO ANO
+  const anoCount = {};
+  data.forEach(d=>{
+    anoCount[d.Ano] = (anoCount[d.Ano]||0)+1;
+  });
+
+  new Chart(document.getElementById('graficoAno'), {
+    type: 'bar',
+    data: {
+      labels: Object.keys(anoCount),
+      datasets: [{ data: Object.values(anoCount) }]
+    }
+  });
+
+  // TABELA
   const tabela = $('#tabela').DataTable({
     data:data,
     columns:[
@@ -44,6 +102,7 @@ fetch('dados-esic.json')
   document.getElementById('filtroAno').addEventListener('change', function(){
     tabela.column(0).search(this.value).draw();
   });
+
 });
 </script>
 
