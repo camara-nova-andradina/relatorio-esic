@@ -275,14 +275,34 @@ fetch('dados-esic.json')
   let tabela=$('#tabela').DataTable({
     data:data,
     columns:[
-      {data:'Ano'},
-      {data:'Data Solicitação'},
-      {data:'Data Resposta'},
-      {data:'Status'},
-      {data:'Área'},
-      {data:'Tipo de Solicitante'},
-      {data:'Cidade'}
-    ]
+  {data:'Ano'},
+  {
+    data:'Data Solicitação',
+    render: function(data){
+      if(!data) return '';
+      let d = new Date(data);
+      let dia = String(d.getDate()).padStart(2,'0');
+      let mes = String(d.getMonth()+1).padStart(2,'0');
+      let ano = d.getFullYear();
+      return `${dia}/${mes}/${ano}`;
+    }
+  },
+  {
+    data:'Data Resposta',
+    render: function(data){
+      if(!data) return '';
+      let d = new Date(data);
+      let dia = String(d.getDate()).padStart(2,'0');
+      let mes = String(d.getMonth()+1).padStart(2,'0');
+      let ano = d.getFullYear();
+      return `${dia}/${mes}/${ano}`;
+    }
+  },
+  {data:'Status'},
+  {data:'Área'},
+  {data:'Tipo de Solicitante'},
+  {data:'Cidade'}
+]
   });
 
   $('#filtroAno,#filtroStatus').on('change',function(){
