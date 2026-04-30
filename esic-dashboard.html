@@ -6,7 +6,6 @@
 
 <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
 <style>
 body { font-family: Arial; margin:20px; background:#f4f6f9; }
@@ -34,6 +33,10 @@ button {
 }
 
 button:hover { background:#2563eb; }
+
+#areaRelatorio {
+  margin:15px 0;
+}
 </style>
 </head>
 
@@ -62,10 +65,11 @@ Status:
 <option>EM ANDAMENTO</option>
 </select>
 
-<br><br>
+<div id="areaRelatorio"></div>
+
+<br>
 
 <button onclick="exportarCSV()">Baixar Excel</button>
-<button onclick="gerarRelatorio()">Gerar Relatório Anual (PDF)</button>
 
 <h3>Dados detalhados</h3>
 
@@ -82,9 +86,13 @@ Status:
 <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
 
 <script>
+
 let dadosGlobais = [];
 let dadosFiltrados = [];
 let graficoStatus, graficoAno, graficoTipo;
+
+// 👉 ANOS QUE POSSUEM RELATÓRIO
+const anosComRelatorio = [2020, 2021, 2023, 2024, 2025];
 
 function parseDate(d){
   if(!d) return null;
@@ -139,7 +147,12 @@ function atualizarTudo(data){
       datasets:[{
         label:'Quantidade',
         data:Object.values(statusCount),
-        backgroundColor:["#16a34a","#dc2626","#f59e0b","#6b7280"]
+        backgroundColor:Object.keys(statusCount).map(s=>{
+          if(s==="ATENDIDA") return "#16a34a";
+          if(s==="INDEFERIDA") return "#dc2626";
+          if(s==="EM ANDAMENTO") return "#f59e0b";
+          return "#6b7280";
+        })
       }]
     }
   });
@@ -147,15 +160,40 @@ function atualizarTudo(data){
   graficoAno.destroy();
   graficoAno=new Chart(graficoAnoCtx,{
     type:'bar',
-    data:{ labels:Object.keys(anoCount), datasets:[{label:'Qtd',data:Object.values(anoCount)}] }
+    data:{
+      labels:Object.keys(anoCount),
+      datasets:[{
+        label:'Quantidade',
+        data:Object.values(anoCount),
+        backgroundColor:"#3b82f6"
+      }]
+    }
   });
 
   graficoTipo.destroy();
   graficoTipo=new Chart(graficoTipoCtx,{
     type:'pie',
-    data:{ labels:Object.keys(tipoCount), datasets:[{data:Object.values(tipoCount)}] }
+    data:{
+      labels:Object.keys(tipoCount),
+      datasets:[{data:Object.values(tipoCount)}]
+    }
   });
 
+}
+
+function atualizarBotaoRelatorio(ano){
+
+  let area = document.getElementById('areaRelatorio');
+
+  if(anosComRelatorio.includes(parseInt(ano))){
+    area.innerHTML = `
+      <button onclick="window.open('relatorios/relatorio_esic_${ano}.pdf')">
+        📄 Baixar Relatório ${ano}
+      </button>
+    `;
+  } else {
+    area.innerHTML = "";
+  }
 }
 
 let graficoStatusCtx=document.getElementById('graficoStatus').getContext('2d');
@@ -212,6 +250,7 @@ fetch('dados-esic.json')
 
     tabela.clear().rows.add(f).draw();
     atualizarTudo(f);
+    atualizarBotaoRelatorio(ano);
 
   });
 
@@ -229,26 +268,6 @@ function exportarCSV(){
   a.click();
 }
 
-function gerarRelatorio(){
-
-  let ano = document.getElementById('filtroAno').value || "Todos os anos";
-
-  let html = `
-    <h2>Relatório Estatístico e-SIC</h2>
-    <h3>Câmara Municipal de Nova Andradina/MS</h3>
-    <p><b>Período:</b> ${ano}</p>
-    <p><b>Total:</b> ${dadosFiltrados.length}</p>
-    <p><b>Atendidas:</b> ${dadosFiltrados.filter(d=>d.Status==="ATENDIDA").length}</p>
-    <p><b>Indeferidas:</b> ${dadosFiltrados.filter(d=>d.Status==="INDEFERIDA").length}</p>
-    <p><b>Data de emissão:</b> ${new Date().toLocaleDateString()}</p>
-    <br>
-    <img src="${graficoStatus.toBase64Image()}"/>
-    <br>
-    <img src="${graficoTipo.toBase64Image()}"/>
-  `;
-
-  html2pdf().from(html).save("relatorio_esic.pdf");
-}
 </script>
 
 </body>
