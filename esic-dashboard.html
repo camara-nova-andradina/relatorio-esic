@@ -19,13 +19,31 @@ body { font-family: Arial; margin:20px; background:#f4f6f9; }
   border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,0.08);
 }
 
-.graficos { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+.graficos {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:20px;
+}
+
+/* 🔥 CONTROLE DE TAMANHO DOS GRÁFICOS */
+#graficoStatus,
+#graficoAno {
+  max-height: 300px;
+}
+
+#graficoTipo {
+  max-height: 420px; /* pizza maior */
+}
+
+canvas {
+  background:#fff;
+  padding:10px;
+  border-radius:10px;
+}
 
 @media(max-width:900px){
   .graficos { grid-template-columns:1fr; }
 }
-
-canvas {   background:#fff;   padding:10px;   border-radius:10px;   max-height: 350px; }
 
 button {
   margin:5px; padding:8px 12px;
@@ -97,7 +115,6 @@ let dadosFiltrados = [];
 
 let graficoStatus, graficoAno, graficoTipo;
 
-// ANOS COM RELATÓRIO
 const anosComRelatorio = [2020, 2021, 2023, 2024, 2025];
 
 function parseDate(d){
@@ -279,46 +296,55 @@ function exportarPDF(){
   let ano = document.getElementById('filtroAno').value || "Todos os anos";
 
   let html = `
-    <div style="font-family:Arial; padding:20px;">
-      <h2>Relatório Estatístico e-SIC</h2>
-      <h3>Câmara Municipal de Nova Andradina/MS</h3>
+<div style="font-family:Arial; padding:20px;">
 
-      <p><b>Período:</b> ${ano}</p>
-      <p><b>Total:</b> ${dadosFiltrados.length}</p>
-      <p><b>Atendidas:</b> ${dadosFiltrados.filter(d=>d.Status==="ATENDIDA").length}</p>
-      <p><b>Indeferidas:</b> ${dadosFiltrados.filter(d=>d.Status==="INDEFERIDA").length}</p>
-      <p><b>Em andamento:</b> ${dadosFiltrados.filter(d=>d.Status==="EM ANDAMENTO").length}</p>
-      <p><b>Data de emissão:</b> ${new Date().toLocaleDateString()}</p>
+<h2>Relatório Estatístico e-SIC</h2>
+<h3>Câmara Municipal de Nova Andradina/MS</h3>
 
-      <h3>Gráfico por Status</h3>
-      <img src="${graficoStatus.toBase64Image()}" style="width:100%;">
+<p><b>Período:</b> ${ano}</p>
+<p><b>Total:</b> ${dadosFiltrados.length}</p>
+<p><b>Atendidas:</b> ${dadosFiltrados.filter(d=>d.Status==="ATENDIDA").length}</p>
+<p><b>Indeferidas:</b> ${dadosFiltrados.filter(d=>d.Status==="INDEFERIDA").length}</p>
+<p><b>Em andamento:</b> ${dadosFiltrados.filter(d=>d.Status==="EM ANDAMENTO").length}</p>
+<p><b>Data de emissão:</b> ${new Date().toLocaleDateString()}</p>
 
-      <h3>Tipo de Solicitante</h3>
-      <img src="${graficoTipo.toBase64Image()}" style="width:100%;">
+<h3>Gráfico por Status</h3>
+<img src="${graficoStatus.toBase64Image()}" style="width:100%; max-height:250px;">
 
-      <h3>Dados</h3>
-      <table border="1" cellspacing="0" cellpadding="5" width="100%">
-        <tr>
-          <th>Ano</th>
-          <th>Data Solicitação</th>
-          <th>Status</th>
-          <th>Tipo</th>
-        </tr>
+<h3>Tipo de Solicitante</h3>
+<img src="${graficoTipo.toBase64Image()}" style="width:100%; max-height:300px;">
 
-        ${dadosFiltrados.map(d=>`
-          <tr>
-            <td>${d.Ano}</td>
-            <td>${d["Data Solicitação"]}</td>
-            <td>${d.Status}</td>
-            <td>${d["Tipo de Solicitante"]}</td>
-          </tr>
-        `).join("")}
+<div style="page-break-before: always;"></div>
 
-      </table>
-    </div>
-  `;
+<h3>Dados</h3>
+<table border="1" cellspacing="0" cellpadding="5" width="100%">
+<tr>
+<th>Ano</th>
+<th>Data Solicitação</th>
+<th>Status</th>
+<th>Tipo</th>
+</tr>
 
-  html2pdf().from(html).save(`relatorio_esic_${ano}.pdf`);
+${dadosFiltrados.map(d=>`
+<tr>
+<td>${d.Ano}</td>
+<td>${d["Data Solicitação"]}</td>
+<td>${d.Status}</td>
+<td>${d["Tipo de Solicitante"]}</td>
+</tr>
+`).join("")}
+
+</table>
+
+</div>
+`;
+
+  html2pdf().set({
+    margin: 10,
+    filename: `relatorio_esic_${ano}.pdf`,
+    html2canvas: { scale: 2 },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+  }).from(html).save();
 }
 
 </script>
