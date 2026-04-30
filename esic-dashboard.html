@@ -74,7 +74,7 @@ canvas {
 </head>
 <body>
 
-<h2>Relatório Estatístico e-SIC</h2>
+<h2>Relatório Estatístico e-SIC - Câmara Municipal de Nova Andradina/MS</h2>
 
 <div class="cards" id="cards"></div>
 
@@ -128,8 +128,15 @@ canvas {
 <script>
 function parseDateBR(dateStr){
   if(!dateStr) return null;
-  const parts = dateStr.split('/');
-  return new Date(parts[2], parts[1]-1, parts[0]);
+
+  if(dateStr.includes('-')) return new Date(dateStr);
+
+  if(dateStr.includes('/')){
+    const p = dateStr.split('/');
+    return new Date(p[2], p[1]-1, p[0]);
+  }
+
+  return null;
 }
 
 fetch('dados-esic.json')
@@ -138,7 +145,19 @@ fetch('dados-esic.json')
 
   // NORMALIZA STATUS
   data.forEach(d=>{
-    if(d.Status === "RESOLVIDA") d.Status = "ATENDIDA";
+    if(d.Status){
+      let s = d.Status.toString().trim().toUpperCase();
+
+      if(s.includes("RESOLVIDA") || s.includes("ATEND")) d.Status = "ATENDIDA";
+      else if(s.includes("INDEFER")) d.Status = "INDEFERIDA";
+      else if(s.includes("ANDAMENTO")) d.Status = "EM ANDAMENTO";
+      else d.Status = "NÃO INFORMADO";
+    } else {
+      d.Status = "NÃO INFORMADO";
+    }
+
+    if(!d.Ano) d.Ano = "Não informado";
+    if(!d["Tipo de Solicitante"]) d["Tipo de Solicitante"] = "Não informado";
   });
 
   // FILTRO ANO
@@ -152,11 +171,10 @@ fetch('dados-esic.json')
   let countPrazo = 0;
 
   data.forEach(d=>{
-    const inicio = parseDateBR(d["Data Solicitação"]);
-    const fim = parseDateBR(d["Data Resposta"]);
-    if(inicio && fim){
-      const diff = (fim - inicio) / (1000*60*60*24);
-      totalDias += diff;
+    const i = parseDateBR(d["Data Solicitação"]);
+    const f = parseDateBR(d["Data Resposta"]);
+    if(i && f){
+      totalDias += (f-i)/(1000*60*60*24);
       countPrazo++;
     }
   });
@@ -186,7 +204,19 @@ fetch('dados-esic.json')
 
   new Chart(document.getElementById('graficoStatus'), {
     type: 'bar',
-    data: { labels:Object.keys(statusCount), datasets:[{data:Object.values(statusCount)}] }
+    data: {
+      labels: Object.keys(statusCount),
+      datasets: [{
+        label: 'Quantidade',
+        data: Object.values(statusCount),
+        backgroundColor: Object.keys(statusCount).map(s => {
+          if(s === "ATENDIDA") return "#16a34a";
+          if(s === "INDEFERIDA") return "#dc2626";
+          if(s === "EM ANDAMENTO") return "#f59e0b";
+          return "#6b7280";
+        })
+      }]
+    }
   });
 
   // GRÁFICO ANO
@@ -197,7 +227,17 @@ fetch('dados-esic.json')
 
   new Chart(document.getElementById('graficoAno'), {
     type: 'bar',
-    data: { labels:Object.keys(anoCount), datasets:[{data:Object.values(anoCount)}] }
+    data: {
+      labels: Object.keys(anoCount),
+      datasets: [{
+        label: 'Quantidade',
+        data: Object.values(anoCount),
+        backgroundColor: Object.keys(anoCount).map((_,i)=>{
+          const cores = ["#1d4ed8","#2563eb","#3b82f6","#60a5fa","#93c5fd","#bfdbfe"];
+          return cores[i % cores.length];
+        })
+      }]
+    }
   });
 
   // GRÁFICO TIPO
@@ -208,7 +248,13 @@ fetch('dados-esic.json')
 
   new Chart(document.getElementById('graficoTipo'), {
     type: 'pie',
-    data: { labels:Object.keys(tipoCount), datasets:[{data:Object.values(tipoCount)}] }
+    data: {
+      labels: Object.keys(tipoCount),
+      datasets: [{
+        label: 'Quantidade',
+        data: Object.values(tipoCount)
+      }]
+    }
   });
 
   // TABELA
