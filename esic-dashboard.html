@@ -5,39 +5,141 @@
 <title>Painel e-SIC</title>
 
 <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
-
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+body {
+  font-family: Arial, sans-serif;
+  margin: 20px;
+  background: #f4f6f9;
+}
+
+h2 {
+  margin-bottom: 15px;
+}
+
+.cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+  margin-bottom: 25px;
+}
+
+.card {
+  flex: 1;
+  min-width: 180px;
+  background: #fff;
+  padding: 15px;
+  border-left: 5px solid #1d4ed8;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.card h3 {
+  font-size: 13px;
+  color: #555;
+  margin: 0;
+}
+
+.card p {
+  font-size: 22px;
+  margin: 5px 0 0;
+  font-weight: bold;
+}
+
+.graficos {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 25px;
+}
+
+@media(max-width: 900px){
+  .graficos {
+    grid-template-columns: 1fr;
+  }
+}
+
+canvas {
+  background: white;
+  padding: 10px;
+  border-radius: 10px;
+}
+
+.filtros {
+  margin-bottom: 15px;
+}
+</style>
+
 </head>
 <body>
 
 <h2>Relatório Estatístico e-SIC</h2>
 
-<div id="indicadores"></div>
+<div class="cards" id="cards"></div>
 
-<h3>Gráfico por Status</h3>
-<canvas id="graficoStatus"></canvas>
-
-<h3>Gráfico por Ano</h3>
-<canvas id="graficoAno"></canvas>
+<div class="graficos">
+  <div>
+    <h3>Solicitações por Status</h3>
+    <canvas id="graficoStatus"></canvas>
+  </div>
+  <div>
+    <h3>Solicitações por Ano</h3>
+    <canvas id="graficoAno"></canvas>
+  </div>
+  <div>
+    <h3>Tipo de Solicitante</h3>
+    <canvas id="graficoTipo"></canvas>
+  </div>
+</div>
 
 <h3>Dados detalhados</h3>
 
-<label>Filtrar por Ano:</label>
-<select id="filtroAno"><option value="">Todos</option></select>
+<div class="filtros">
+  <label>Ano:</label>
+  <select id="filtroAno"><option value="">Todos</option></select>
+
+  <label>Status:</label>
+  <select id="filtroStatus">
+    <option value="">Todos</option>
+    <option>ATENDIDA</option>
+    <option>INDEFERIDA</option>
+    <option>EM ANDAMENTO</option>
+  </select>
+</div>
 
 <table id="tabela" class="display">
-<thead><tr>
-<th>Ano</th><th>Data Solicitação</th><th>Data Resposta</th><th>Status</th><th>Área</th><th>Tipo de Solicitante</th><th>Cidade</th>
-</tr></thead>
+<thead>
+<tr>
+<th>Ano</th>
+<th>Data Solicitação</th>
+<th>Data Resposta</th>
+<th>Status</th>
+<th>Área</th>
+<th>Tipo</th>
+<th>Cidade</th>
+</tr>
+</thead>
 </table>
 
 <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
 
 <script>
+function parseDateBR(dateStr){
+  if(!dateStr) return null;
+  const parts = dateStr.split('/');
+  return new Date(parts[2], parts[1]-1, parts[0]);
+}
+
 fetch('dados-esic.json')
 .then(r=>r.json())
 .then(data=>{
+
+  // NORMALIZA STATUS
+  data.forEach(d=>{
+    if(d.Status === "RESOLVIDA") d.Status = "ATENDIDA";
+  });
 
   // FILTRO ANO
   const anos=[...new Set(data.map(d=>d.Ano))];
@@ -45,16 +147,35 @@ fetch('dados-esic.json')
     document.getElementById('filtroAno').innerHTML+=`<option>${a}</option>`;
   });
 
+  // PRAZO MÉDIO
+  let totalDias = 0;
+  let countPrazo = 0;
+
+  data.forEach(d=>{
+    const inicio = parseDateBR(d["Data Solicitação"]);
+    const fim = parseDateBR(d["Data Resposta"]);
+    if(inicio && fim){
+      const diff = (fim - inicio) / (1000*60*60*24);
+      totalDias += diff;
+      countPrazo++;
+    }
+  });
+
+  const prazoMedio = countPrazo ? (totalDias/countPrazo).toFixed(1) : 0;
+
   // INDICADORES
   const total = data.length;
-  const atendidas = data.filter(d=>d.Status=="Atendida").length;
-  const indeferidas = data.filter(d=>d.Status=="Indeferida").length;
+  const atendidas = data.filter(d=>d.Status==="ATENDIDA").length;
+  const indeferidas = data.filter(d=>d.Status==="INDEFERIDA").length;
+  const andamento = data.filter(d=>d.Status==="EM ANDAMENTO").length;
 
-  document.getElementById('indicadores').innerHTML = `
-    <p><b>Total:</b> ${total}</p>
-    <p><b>Atendidas:</b> ${atendidas}</p>
-    <p><b>Indeferidas:</b> ${indeferidas}</p>
-    <p><b>% Atendimento:</b> ${((atendidas/total)*100).toFixed(1)}%</p>
+  document.getElementById('cards').innerHTML = `
+    <div class="card"><h3>Total</h3><p>${total}</p></div>
+    <div class="card"><h3>Atendidas</h3><p>${atendidas}</p></div>
+    <div class="card"><h3>Indeferidas</h3><p>${indeferidas}</p></div>
+    <div class="card"><h3>Em Andamento</h3><p>${andamento}</p></div>
+    <div class="card"><h3>% Atendimento</h3><p>${((atendidas/total)*100).toFixed(1)}%</p></div>
+    <div class="card"><h3>Prazo Médio (dias)</h3><p>${prazoMedio}</p></div>
   `;
 
   // GRÁFICO STATUS
@@ -65,10 +186,7 @@ fetch('dados-esic.json')
 
   new Chart(document.getElementById('graficoStatus'), {
     type: 'bar',
-    data: {
-      labels: Object.keys(statusCount),
-      datasets: [{ data: Object.values(statusCount) }]
-    }
+    data: { labels:Object.keys(statusCount), datasets:[{data:Object.values(statusCount)}] }
   });
 
   // GRÁFICO ANO
@@ -79,10 +197,18 @@ fetch('dados-esic.json')
 
   new Chart(document.getElementById('graficoAno'), {
     type: 'bar',
-    data: {
-      labels: Object.keys(anoCount),
-      datasets: [{ data: Object.values(anoCount) }]
-    }
+    data: { labels:Object.keys(anoCount), datasets:[{data:Object.values(anoCount)}] }
+  });
+
+  // GRÁFICO TIPO
+  const tipoCount = {};
+  data.forEach(d=>{
+    tipoCount[d["Tipo de Solicitante"]] = (tipoCount[d["Tipo de Solicitante"]]||0)+1;
+  });
+
+  new Chart(document.getElementById('graficoTipo'), {
+    type: 'pie',
+    data: { labels:Object.keys(tipoCount), datasets:[{data:Object.values(tipoCount)}] }
   });
 
   // TABELA
@@ -99,8 +225,13 @@ fetch('dados-esic.json')
     ]
   });
 
-  document.getElementById('filtroAno').addEventListener('change', function(){
+  // FILTROS
+  $('#filtroAno').on('change', function(){
     tabela.column(0).search(this.value).draw();
+  });
+
+  $('#filtroStatus').on('change', function(){
+    tabela.column(3).search(this.value).draw();
   });
 
 });
